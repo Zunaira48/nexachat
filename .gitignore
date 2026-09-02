@@ -22,4 +22,14 @@ Thumbs.db
 .vscode/
 .idea/
 
+
+
+# Prisma generated client (regenerated from schema, not source)
+apps/server/src/generated/
+
+# Prisma's bundled AI-agent skill scaffolding (tooling, not project code)
+apps/server/.claude/
+apps/server/.windsurf/
+apps/server/.agents/
+apps/server/skills-lock.json
 # Prisma (kept out until we actually need to think about it in Phase 2)
