@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/postgres-client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("NEON_DATABASE_URL")
+  directUrl = env("NEON_DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
