@@ -5,6 +5,7 @@ import pinoHttp from 'pino-http';
 import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health.route';
+import { authRouter } from './routes/auth.route';
 
 export function createApp() {
   const app = express();
@@ -20,6 +21,8 @@ export function createApp() {
   app.use(pinoHttp());
 
   app.use('/health', healthRouter);
+  
+  app.use('/api/auth', authRouter);
 
   // 404 for anything unmatched — must come after all real routes
   app.use((_req, res) => {
