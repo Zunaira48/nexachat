@@ -46,7 +46,7 @@ interface RequestMeta {
 async function issueSession(userId: string, meta: RequestMeta) {
   const refreshToken = generateRefreshToken();
 
-  await (prisma as typeof prisma & { session: typeof prisma['session'] }).session.create({
+  await prisma.session.create({
     data: {
       userId,
       refreshTokenHash: hashRefreshToken(refreshToken),
