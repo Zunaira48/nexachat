@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { authedFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/stores/auth-store';
+import { useConversationSocket } from '@/hooks/use-conversation-socket';
 
 interface Message {
   id: string;
@@ -19,8 +20,9 @@ export default function ConversationPage() {
   const params = useParams<{ id: string }>();
   const conversationId = params.id;
   const currentUserId = useAuthStore((s) => s.user?.id);
-  const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
+
+  useConversationSocket(conversationId);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['messages', conversationId],
@@ -36,11 +38,11 @@ export default function ConversationPage() {
         method: 'POST',
         body: JSON.stringify({ content }),
       }),
-    onSuccess: () => {
-      setDraft('');
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-    },
+    // No need to manually refetch here anymore — the socket's
+    // 'new_message' event (which the sender also receives, since
+    // they're in the room) updates the cache directly, and
+    // 'conversation_updated' handles the conversation list.
+    onSuccess: () => setDraft(''),
   });
 
   if (isLoading) return <p className="p-6 text-muted-foreground">Loading messages…</p>;

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { sendMessage, listMessages } from '../services/message.service';
 import { AppError } from '../utils/AppError';
+import { getIO } from '../socket';
 
 function getConversationId(req: Request): string {
   const raw = req.params.conversationId;
@@ -15,6 +16,11 @@ export async function create(req: Request, res: Response, next: NextFunction) {
     const conversationId = getConversationId(req);
 
     const message = await sendMessage(conversationId, req.user.sub, req.body.content);
+
+    // Broadcast only after the write succeeded — never before.
+    getIO().to(`conversation:${conversationId}`).emit('new_message', message);
+    getIO().to(`conversation:${conversationId}`).emit('conversation_updated', { conversationId });
+
     res.status(201).json({ message });
   } catch (err) {
     next(err);
