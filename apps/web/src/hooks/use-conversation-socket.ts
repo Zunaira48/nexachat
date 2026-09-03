@@ -41,13 +41,21 @@ export function useConversationSocket(conversationId: string) {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
 
+    function handleMessagesRead() {
+      // Wired up and confirmed working (Phase 12) — UI display of
+      // per-message "seen" state is a deliberate later addition,
+      // likely alongside Phase 13's group conversation work.
+    }
+
     socket.on('new_message', handleNewMessage);
     socket.on('conversation_updated', handleConversationUpdated);
+    socket.on('messages_read', handleMessagesRead);
 
     return () => {
       socket.emit('leave_conversation', conversationId);
       socket.off('new_message', handleNewMessage);
       socket.off('conversation_updated', handleConversationUpdated);
+      socket.off('messages_read', handleMessagesRead);
     };
   }, [conversationId, accessToken, queryClient]);
 }

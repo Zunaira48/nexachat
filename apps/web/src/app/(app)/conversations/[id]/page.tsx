@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { authedFetch } from '@/lib/api';
@@ -34,6 +34,16 @@ export default function ConversationPage() {
         `/api/conversations/${conversationId}/messages`,
       ),
   });
+
+  // Mark the conversation read whenever messages load or change —
+  // covers both "opened the conversation" and "new message arrived
+  // while already viewing it."
+  useEffect(() => {
+    if (!data?.messages.length) return;
+    authedFetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {
+      // Non-critical — a failed read-receipt shouldn't break the UI
+    });
+  }, [conversationId, data?.messages.length]);
 
   const sendMutation = useMutation({
     mutationFn: (content: string) =>
