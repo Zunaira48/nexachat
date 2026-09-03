@@ -27,7 +27,7 @@ export default function LoginPage() {
       }),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken);
-      router.push('/');
+      router.push('/conversations');
     },
   });
 

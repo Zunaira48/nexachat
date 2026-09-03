@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/stores/auth-store';
 import { useConversationSocket } from '@/hooks/use-conversation-socket';
+import { useTyping } from '@/hooks/use-typing';
 
 interface Message {
   id: string;
@@ -23,6 +24,8 @@ export default function ConversationPage() {
   const [draft, setDraft] = useState('');
 
   useConversationSocket(conversationId);
+  
+  const { typingUserIds, emitTypingStart, emitTypingStop } = useTyping(conversationId);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['messages', conversationId],
@@ -82,13 +85,20 @@ export default function ConversationPage() {
       >
         <Input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            emitTypingStart();
+          }}
+          onBlur={emitTypingStop}
           placeholder="Type a message…"
         />
         <Button type="submit" disabled={sendMutation.isPending}>
           Send
         </Button>
       </form>
+      {typingUserIds.size > 0 && (
+        <p className="px-6 pb-2 text-xs text-muted-foreground">Someone is typing…</p>
+      )}
     </div>
   );
 }

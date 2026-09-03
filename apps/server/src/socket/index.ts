@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import { verifyAccessToken } from '../utils/tokens';
 import { assertConversationMember } from '../services/authorization.service';
 import { env } from '../config/env';
+import { addConnection, removeConnection, isOnline } from './presence';
 
 let ioInstance: Server | undefined;
 
@@ -14,9 +15,6 @@ export function initSocket(httpServer: HttpServer) {
     },
   });
 
-  // Every socket must present a valid access token before the
-  // connection is accepted — same trust boundary as REST, just
-  // enforced at handshake time instead of per-request.
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
     if (typeof token !== 'string') {
@@ -32,11 +30,20 @@ export function initSocket(httpServer: HttpServer) {
   });
 
   io.on('connection', (socket) => {
+    const userId = socket.data.userId as string;
+
+    // Multi-device aware: only broadcast "online" on the FIRST
+    // connection for this user, not on every additional tab/device.
+    const connectionCount = addConnection(userId);
+    if (connectionCount === 1) {
+      io.emit('presence_update', { userId, online: true });
+    }
+
     socket.on(
       'join_conversation',
       async (conversationId: string, callback?: (res: { ok: boolean; error?: string }) => void) => {
         try {
-          await assertConversationMember(conversationId, socket.data.userId);
+          await assertConversationMember(conversationId, userId);
           socket.join(`conversation:${conversationId}`);
           callback?.({ ok: true });
         } catch {
@@ -49,8 +56,25 @@ export function initSocket(httpServer: HttpServer) {
       socket.leave(`conversation:${conversationId}`);
     });
 
-    // Presence (online/offline) is Phase 11 — this connection handler
-    // deliberately does nothing more than auth + room membership for now.
+    // Typing indicators — pure ephemeral broadcast, never persisted.
+    // The room check isn't re-verified here since typing_start only
+    // has effect for sockets already joined to the room (Socket.IO
+    // only delivers to actual room members), so a non-member emitting
+    // this is a no-op, not a security hole.
+    socket.on('typing_start', (conversationId: string) => {
+      socket.to(`conversation:${conversationId}`).emit('user_typing', { userId, conversationId });
+    });
+
+    socket.on('typing_stop', (conversationId: string) => {
+      socket.to(`conversation:${conversationId}`).emit('user_stopped_typing', { userId, conversationId });
+    });
+
+    socket.on('disconnect', () => {
+      const remaining = removeConnection(userId);
+      if (remaining === 0) {
+        io.emit('presence_update', { userId, online: false });
+      }
+    });
   });
 
   ioInstance = io;
@@ -63,3 +87,5 @@ export function getIO(): Server {
   }
   return ioInstance;
 }
+
+export { isOnline };
