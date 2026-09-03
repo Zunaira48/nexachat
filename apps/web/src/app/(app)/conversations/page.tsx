@@ -1,8 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { authedFetch } from '@/lib/api';
-
 interface ConversationSummary {
   id: string;
   type: 'DIRECT' | 'GROUP';
@@ -28,8 +28,13 @@ export default function ConversationsPage() {
       ) : (
         <ul className="space-y-2">
           {conversations.map((c) => (
-            <li key={c.id} className="border border-border rounded-md p-4">
-              {c.members.map((m) => m.user.displayName).join(', ')}
+            <li key={c.id}>
+              <Link
+                href={`/conversations/${c.id}`}
+                className="block border border-border rounded-md p-4 hover:bg-foreground/5 transition-colors"
+              >
+                {c.members.map((m) => m.user.displayName).join(', ')}
+              </Link>
             </li>
           ))}
         </ul>
