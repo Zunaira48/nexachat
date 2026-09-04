@@ -1,8 +1,21 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { validate } from '../middleware/validate';
-import { sendMessageSchema, listMessagesQuerySchema } from '../validators/message.validator';
-import { create, list } from '../controllers/message.controller';
+import {
+  sendMessageSchema,
+  editMessageSchema,
+  reactSchema,
+  listMessagesQuerySchema,
+} from '../validators/message.validator';
+import {
+  create,
+  list,
+  update,
+  remove,
+  react,
+  unreact,
+  pin,
+} from '../controllers/message.controller';
 
 export const messageRouter = Router({ mergeParams: true });
 
@@ -18,10 +31,14 @@ messageRouter.get(
       const message = parsed.error.issues[0]?.message ?? 'Invalid query parameters';
       return res.status(400).json({ error: { message } });
     }
-    // Express 5 made req.query getter-only — attach parsed data
-    // to a new property instead of reassigning req.query directly.
     res.locals.validatedQuery = parsed.data;
     next();
   },
   list,
 );
+
+messageRouter.patch('/:messageId', validate(editMessageSchema), update);
+messageRouter.delete('/:messageId', remove);
+messageRouter.post('/:messageId/reactions', validate(reactSchema), react);
+messageRouter.delete('/:messageId/reactions/:emoji', unreact);
+messageRouter.post('/:messageId/pin', pin);

@@ -8,15 +8,15 @@ datasource db {
 }
 
 model User {
-  id                   String               @id @default(cuid())
-  email                String               @unique
-  username             String               @unique
-  passwordHash         String
-  displayName          String
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  sessions             Session[]
-  conversationMembers  ConversationMember[]
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  username            String               @unique
+  passwordHash        String
+  displayName         String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  sessions            Session[]
+  conversationMembers ConversationMember[]
 }
 
 // type: "DIRECT" | "GROUP" — plain String because SQL Server has no
@@ -41,6 +41,7 @@ model ConversationMember {
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   role           String       @default("MEMBER")
+  isFavorite     Boolean      @default(false)
   joinedAt       DateTime     @default(now())
 
   @@unique([conversationId, userId]) // prevents duplicate membership
@@ -48,21 +49,40 @@ model ConversationMember {
 }
 
 model Message {
-  id             String        @id @default(cuid())
+  id             String            @id @default(cuid())
   conversationId String
-  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   content        String
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime          @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  pinnedAt       DateTime?
+  replyToId      String?
+  replyTo        Message?          @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies        Message[]         @relation("MessageReplies")
   reads          MessageRead[]
+  reactions      MessageReaction[]
 
   @@index([conversationId, createdAt])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model MessageRead {
   id        String   @id @default(cuid())
   messageId String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   userId    String
   readAt    DateTime @default(now())
 

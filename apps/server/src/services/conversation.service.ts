@@ -62,3 +62,16 @@ export async function createDirectConversation(currentUserId: string, otherUserI
     include: conversationInclude,
   });
 }
+
+
+export async function toggleFavorite(conversationId: string, userId: string) {
+  const membership = await prisma.conversationMember.findUnique({
+    where: { conversationId_userId: { conversationId, userId } },
+  });
+  if (!membership) throw new AppError('Conversation not found', 404);
+
+  return prisma.conversationMember.update({
+    where: { id: membership.id },
+    data: { isFavorite: !membership.isFavorite },
+  });
+}
