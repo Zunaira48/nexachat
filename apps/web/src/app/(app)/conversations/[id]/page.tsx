@@ -3,18 +3,33 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { Pin, Pencil, Trash2, Reply as ReplyIcon, X } from 'lucide-react';
 import { authedFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/stores/auth-store';
 import { useConversationSocket } from '@/hooks/use-conversation-socket';
 import { useTyping } from '@/hooks/use-typing';
+import { ReactionPicker } from '@/components/reaction-picker';
+
+interface Reaction {
+  id: string;
+  userId: string;
+  emoji: string;
+}
 
 interface Message {
   id: string;
   senderId: string;
   content: string;
+  type: string;
   createdAt: string;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  pinnedAt?: string | null;
+  replyToId?: string | null;
+  replyTo?: { id: string; content: string; senderId: string; deletedAt: string | null } | null;
+  reactions: Reaction[];
 }
 
 export default function ConversationPage() {
@@ -22,9 +37,11 @@ export default function ConversationPage() {
   const conversationId = params.id;
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [draft, setDraft] = useState('');
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
 
   useConversationSocket(conversationId);
-  
   const { typingUserIds, emitTypingStart, emitTypingStop } = useTyping(conversationId);
 
   const { data, isLoading, error } = useQuery({
@@ -35,56 +52,214 @@ export default function ConversationPage() {
       ),
   });
 
-  // Mark the conversation read whenever messages load or change —
-  // covers both "opened the conversation" and "new message arrived
-  // while already viewing it."
+  const messages = data?.messages ?? [];
+
   useEffect(() => {
-    if (!data?.messages.length) return;
-    authedFetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {
-      // Non-critical — a failed read-receipt shouldn't break the UI
-    });
-  }, [conversationId, data?.messages.length]);
+    if (!messages.length) return;
+    authedFetch(`/api/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {});
+  }, [conversationId, messages.length]);
 
   const sendMutation = useMutation({
     mutationFn: (content: string) =>
       authedFetch(`/api/conversations/${conversationId}/messages`, {
         method: 'POST',
+        body: JSON.stringify({ content, replyToId: replyTo?.id }),
+      }),
+    onSuccess: () => {
+      setDraft('');
+      setReplyTo(null);
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, content }: { id: string; content: string }) =>
+      authedFetch(`/api/conversations/${conversationId}/messages/${id}`, {
+        method: 'PATCH',
         body: JSON.stringify({ content }),
       }),
-    // No need to manually refetch here anymore — the socket's
-    // 'new_message' event (which the sender also receives, since
-    // they're in the room) updates the cache directly, and
-    // 'conversation_updated' handles the conversation list.
-    onSuccess: () => setDraft(''),
+    onSuccess: () => setEditingId(null),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      authedFetch(`/api/conversations/${conversationId}/messages/${id}`, { method: 'DELETE' }),
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: (id: string) =>
+      authedFetch(`/api/conversations/${conversationId}/messages/${id}/pin`, { method: 'POST' }),
+  });
+
+  const reactMutation = useMutation({
+    mutationFn: ({ id, emoji }: { id: string; emoji: string }) =>
+      authedFetch(`/api/conversations/${conversationId}/messages/${id}/reactions`, {
+        method: 'POST',
+        body: JSON.stringify({ emoji }),
+      }),
+  });
+
+  const unreactMutation = useMutation({
+    mutationFn: ({ id, emoji }: { id: string; emoji: string }) =>
+      authedFetch(`/api/conversations/${conversationId}/messages/${id}/reactions/${encodeURIComponent(emoji)}`, {
+        method: 'DELETE',
+      }),
+  });
+
+  function toggleReaction(message: Message, emoji: string) {
+    const mine = message.reactions.find((r) => r.userId === currentUserId && r.emoji === emoji);
+    if (mine) {
+      unreactMutation.mutate({ id: message.id, emoji });
+    } else {
+      reactMutation.mutate({ id: message.id, emoji });
+    }
+  }
 
   if (isLoading) return <p className="p-6 text-muted-foreground">Loading messages…</p>;
   if (error) return <p className="p-6 text-red-500">Unable to load this conversation.</p>;
 
-  const messages = data?.messages ?? [];
+  const pinnedMessages = messages.filter((m) => m.pinnedAt);
 
   return (
     <div className="flex flex-col h-[calc(100vh-57px)] max-w-2xl mx-auto">
-      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+      {pinnedMessages.length > 0 && (
+        <div className="border-b border-border px-4 py-2 bg-foreground/3 text-xs text-muted-foreground flex items-center gap-1.5 overflow-x-auto">
+          <Pin size={12} className="shrink-0" />
+          {pinnedMessages.map((m) => m.content).join(' · ')}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-1">
         {messages.length === 0 ? (
           <p className="text-muted-foreground">No messages yet. Say hello.</p>
         ) : (
           messages.map((m) => {
             const isMine = m.senderId === currentUserId;
-            return (
-              <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-xs rounded-md px-3 py-2 text-sm ${
-                    isMine ? 'bg-signal text-paper' : 'bg-foreground/5'
-                  }`}
-                >
+
+            if (m.type === 'SYSTEM') {
+              return (
+                <p key={m.id} className="text-center text-xs text-muted-foreground py-2">
                   {m.content}
+                </p>
+              );
+            }
+
+            const reactionGroups = m.reactions.reduce<Record<string, number>>((acc, r) => {
+              acc[r.emoji] = (acc[r.emoji] ?? 0) + 1;
+              return acc;
+            }, {});
+
+            return (
+              <div key={m.id} className={`group flex ${isMine ? 'justify-end' : 'justify-start'} py-1`}>
+                <div className={`flex items-end gap-1.5 ${isMine ? 'flex-row-reverse' : ''}`}>
+                  <div className="max-w-xs">
+                    {m.replyTo && (
+                      <div className="text-xs text-muted-foreground border-l-2 border-border pl-2 mb-1 truncate">
+                        {m.replyTo.deletedAt ? 'Original message deleted' : m.replyTo.content}
+                      </div>
+                    )}
+
+                    {editingId === m.id ? (
+                      <form
+                        className="flex gap-1"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          editMutation.mutate({ id: m.id, content: editDraft });
+                        }}
+                      >
+                        <Input
+                          value={editDraft}
+                          onChange={(e) => setEditDraft(e.target.value)}
+                          autoFocus
+                        />
+                        <Button type="submit" variant="secondary">
+                          Save
+                        </Button>
+                      </form>
+                    ) : (
+                      <div
+                        className={`rounded-md px-3 py-2 text-sm ${
+                          m.deletedAt
+                            ? 'italic text-muted-foreground bg-foreground/5'
+                            : isMine
+                              ? 'bg-signal text-paper'
+                              : 'bg-foreground/5'
+                        }`}
+                      >
+                        {m.deletedAt ? 'This message was deleted' : m.content}
+                        {m.editedAt && !m.deletedAt && (
+                          <span className="text-[10px] opacity-70 ml-1.5">(edited)</span>
+                        )}
+                      </div>
+                    )}
+
+                    {Object.keys(reactionGroups).length > 0 && (
+                      <div className="flex gap-1 mt-1">
+                        {Object.entries(reactionGroups).map(([emoji, count]) => (
+                          <button
+                            key={emoji}
+                            onClick={() => toggleReaction(m, emoji)}
+                            className="text-xs bg-foreground/5 border border-border rounded-full px-1.5 py-0.5 hover:bg-foreground/10"
+                          >
+                            {emoji} {count}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {!m.deletedAt && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                      <ReactionPicker onSelect={(emoji) => toggleReaction(m, emoji)} />
+                      <Button variant="ghost" onClick={() => setReplyTo(m)} aria-label="Reply">
+                        <ReplyIcon size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => pinMutation.mutate(m.id)}
+                        aria-label={m.pinnedAt ? 'Unpin message' : 'Pin message'}
+                      >
+                        <Pin size={16} className={m.pinnedAt ? 'fill-amber text-amber' : ''} />
+                      </Button>
+                      {isMine && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingId(m.id);
+                              setEditDraft(m.content);
+                            }}
+                            aria-label="Edit message"
+                          >
+                            <Pencil size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => deleteMutation.mutate(m.id)}
+                            aria-label="Delete message"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {replyTo && (
+        <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-foreground/3 text-sm">
+          <span className="text-muted-foreground truncate">
+            Replying to: <span className="text-foreground">{replyTo.content}</span>
+          </span>
+          <Button variant="ghost" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+            <X size={14} />
+          </Button>
+        </div>
+      )}
 
       <form
         className="flex gap-2 p-4 border-t border-border"
