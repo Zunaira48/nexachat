@@ -19,21 +19,16 @@ model User {
   conversationMembers ConversationMember[]
 }
 
-// type: "DIRECT" | "GROUP" — plain String because SQL Server has no
-// native enum type; Postgres does, but we keep both schemas as String
-// so the generated Prisma Client types match identically across environments.
-// Validated at the application boundary via Zod, not the database.
 model Conversation {
   id        String               @id @default(cuid())
   type      String
-  name      String? // only used for GROUP conversations
+  name      String?
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
   members   ConversationMember[]
   messages  Message[]
 }
 
-// role: "OWNER" | "ADMIN" | "MEMBER" — same reasoning as above
 model ConversationMember {
   id             String       @id @default(cuid())
   conversationId String
@@ -44,7 +39,7 @@ model ConversationMember {
   isFavorite     Boolean      @default(false)
   joinedAt       DateTime     @default(now())
 
-  @@unique([conversationId, userId]) // prevents duplicate membership
+  @@unique([conversationId, userId])
   @@index([userId])
 }
 
@@ -54,7 +49,7 @@ model Message {
   conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   content        String
-  type           String            @default("TEXT") // "TEXT" | "SYSTEM"
+  type           String            @default("TEXT") // "TEXT" | "SYSTEM" | "IMAGE" | "FILE"
   createdAt      DateTime          @default(now())
   editedAt       DateTime?
   deletedAt      DateTime?
@@ -64,6 +59,7 @@ model Message {
   replies        Message[]         @relation("MessageReplies")
   reads          MessageRead[]
   reactions      MessageReaction[]
+  attachment     Attachment?
 
   @@index([conversationId, createdAt])
 }
@@ -89,6 +85,18 @@ model MessageRead {
 
   @@unique([messageId, userId])
   @@index([userId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fileName  String
+  mimeType  String
+  size      Int
+  key       String
+  url       String
+  createdAt DateTime @default(now())
 }
 
 model Session {

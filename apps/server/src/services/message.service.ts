@@ -45,6 +45,7 @@ export async function listMessages(
     include: {
       reactions: true,
       replyTo: { select: { id: true, content: true, senderId: true, deletedAt: true } },
+      attachment: true,
     },
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });

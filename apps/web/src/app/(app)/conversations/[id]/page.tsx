@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Pin, Pencil, Trash2, Reply as ReplyIcon, X } from 'lucide-react';
+import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText } from 'lucide-react';
 import { authedFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +12,19 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useConversationSocket } from '@/hooks/use-conversation-socket';
 import { useTyping } from '@/hooks/use-typing';
 import { ReactionPicker } from '@/components/reaction-picker';
+import { useFileUpload } from '@/hooks/use-file-upload';
 
 interface Reaction {
   id: string;
   userId: string;
   emoji: string;
+}
+
+interface Attachment {
+  fileName: string;
+  mimeType: string;
+  size: number;
+  url: string;
 }
 
 interface Message {
@@ -30,6 +39,7 @@ interface Message {
   replyToId?: string | null;
   replyTo?: { id: string; content: string; senderId: string; deletedAt: string | null } | null;
   reactions: Reaction[];
+  attachment?: Attachment | null;
 }
 
 export default function ConversationPage() {
@@ -43,6 +53,8 @@ export default function ConversationPage() {
 
   useConversationSocket(conversationId);
   const { typingUserIds, emitTypingStart, emitTypingStop } = useTyping(conversationId);
+  const { uploadFile, isUploading, error: uploadError } = useFileUpload(conversationId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['messages', conversationId],
@@ -100,9 +112,10 @@ export default function ConversationPage() {
 
   const unreactMutation = useMutation({
     mutationFn: ({ id, emoji }: { id: string; emoji: string }) =>
-      authedFetch(`/api/conversations/${conversationId}/messages/${id}/reactions/${encodeURIComponent(emoji)}`, {
-        method: 'DELETE',
-      }),
+      authedFetch(
+        `/api/conversations/${conversationId}/messages/${id}/reactions/${encodeURIComponent(emoji)}`,
+        { method: 'DELETE' },
+      ),
   });
 
   function toggleReaction(message: Message, emoji: string) {
@@ -166,15 +179,34 @@ export default function ConversationPage() {
                           editMutation.mutate({ id: m.id, content: editDraft });
                         }}
                       >
-                        <Input
-                          value={editDraft}
-                          onChange={(e) => setEditDraft(e.target.value)}
-                          autoFocus
-                        />
+                        <Input value={editDraft} onChange={(e) => setEditDraft(e.target.value)} autoFocus />
                         <Button type="submit" variant="secondary">
                           Save
                         </Button>
                       </form>
+                    ) : m.attachment && !m.deletedAt ? (
+                      m.type === 'IMAGE' ? (
+                        <a href={m.attachment.url} target="_blank" rel="noopener noreferrer">
+                          <Image
+                            src={m.attachment.url}
+                            alt={m.attachment.fileName}
+                            width={240}
+                            height={240}
+                            unoptimized
+                            className="rounded-md max-w-60 max-h-60 object-cover"
+                          />
+                        </a>
+                      ) : (
+                        <a
+                          href={m.attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm bg-foreground/5 hover:bg-foreground/10 border border-border"
+                        >
+                          <FileText size={16} className="shrink-0" />
+                          <span className="truncate">{m.attachment.fileName}</span>
+                        </a>
+                      )
                     ) : (
                       <div
                         className={`rounded-md px-3 py-2 text-sm ${
@@ -268,6 +300,25 @@ export default function ConversationPage() {
           if (draft.trim()) sendMutation.mutate(draft);
         }}
       >
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) uploadFile(file);
+            e.target.value = '';
+          }}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          aria-label="Attach file"
+        >
+          <Paperclip size={16} />
+        </Button>
         <Input
           value={draft}
           onChange={(e) => {
@@ -281,6 +332,8 @@ export default function ConversationPage() {
           Send
         </Button>
       </form>
+      {isUploading && <p className="px-6 pb-2 text-xs text-muted-foreground">Uploading…</p>}
+      {uploadError && <p className="px-6 pb-2 text-xs text-red-500">{uploadError}</p>}
       {typingUserIds.size > 0 && (
         <p className="px-6 pb-2 text-xs text-muted-foreground">Someone is typing…</p>
       )}

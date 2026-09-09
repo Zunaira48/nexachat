@@ -35,10 +35,6 @@ model Session {
   @@index([userId])
 }
 
-// type: "DIRECT" | "GROUP" — plain String to match the SQL Server schema
-// exactly (SQL Server has no native enum type), so the generated Prisma
-// Client types are identical across both environments. Validated via Zod
-// at the application boundary, not the database.
 model Conversation {
   id        String               @id @default(cuid())
   type      String
@@ -49,7 +45,6 @@ model Conversation {
   messages  Message[]
 }
 
-// role: "OWNER" | "ADMIN" | "MEMBER" — same reasoning as above
 model ConversationMember {
   id             String       @id @default(cuid())
   conversationId String
@@ -70,7 +65,7 @@ model Message {
   conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   content        String
-  type           String            @default("TEXT") // "TEXT" | "SYSTEM"
+  type           String            @default("TEXT") // "TEXT" | "SYSTEM" | "IMAGE" | "FILE"
   createdAt      DateTime          @default(now())
   editedAt       DateTime?
   deletedAt      DateTime?
@@ -80,6 +75,7 @@ model Message {
   replies        Message[]         @relation("MessageReplies")
   reads          MessageRead[]
   reactions      MessageReaction[]
+  attachment     Attachment?
 
   @@index([conversationId, createdAt])
 }
@@ -105,4 +101,16 @@ model MessageRead {
 
   @@unique([messageId, userId])
   @@index([userId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fileName  String
+  mimeType  String
+  size      Int
+  key       String
+  url       String
+  createdAt DateTime @default(now())
 }
