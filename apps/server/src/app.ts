@@ -10,6 +10,8 @@ import { authRouter } from './routes/auth.route';
 import { userRouter } from './routes/user.route';
 import { conversationRouter } from './routes/conversation.route';
 import { groupRouter } from './routes/group.route';
+import { notificationRouter } from './routes/notification.route';
+import { searchRouter } from './routes/search.route';
 
 export function createApp() {
   const app = express();
@@ -31,6 +33,8 @@ export function createApp() {
   app.use('/api/users', userRouter);
   app.use('/api/conversations', conversationRouter);
   app.use('/api/groups', groupRouter);
+  app.use('/api/notifications', notificationRouter);
+  app.use('/api/search', searchRouter);
 
   // 404 for anything unmatched — must come after all real routes
   app.use((_req, res) => {

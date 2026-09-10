@@ -32,6 +32,11 @@ export function initSocket(httpServer: HttpServer) {
   io.on('connection', (socket) => {
     const userId = socket.data.userId as string;
 
+    // Personal room for this user — lets us push notifications to
+    // every one of their connected tabs/devices at once, without
+    // needing to know their socket IDs individually.
+    socket.join(`user:${userId}`);
+
     // Multi-device aware: only broadcast "online" on the FIRST
     // connection for this user, not on every additional tab/device.
     const connectionCount = addConnection(userId);

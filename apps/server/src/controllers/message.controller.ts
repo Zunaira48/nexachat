@@ -10,6 +10,7 @@ import {
 } from '../services/message.service';
 import { AppError } from '../utils/AppError';
 import { getIO } from '../socket';
+import { notifyConversationMembers } from '../services/notification.service';
 
 function getParam(req: Request, name: string): string {
   const raw = req.params[name];
@@ -32,6 +33,15 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
     getIO().to(`conversation:${conversationId}`).emit('new_message', message);
     getIO().to(`conversation:${conversationId}`).emit('conversation_updated', { conversationId });
+
+    // Fire-and-forget — a notification failure shouldn't block the
+    // message send response.
+    notifyConversationMembers(
+      conversationId,
+      req.user.sub,
+      'NEW_MESSAGE',
+      message.content.slice(0, 100),
+    ).catch(() => {});
 
     res.status(201).json({ message });
   } catch (err) {
