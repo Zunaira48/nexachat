@@ -213,7 +213,7 @@ export default function ConversationPage() {
                           m.deletedAt
                             ? 'italic text-muted-foreground bg-foreground/5'
                             : isMine
-                              ? 'bg-signal text-paper'
+                              ? 'bg-linear-to-br from-signal to-signal-2 text-paper'
                               : 'bg-foreground/5'
                         }`}
                       >

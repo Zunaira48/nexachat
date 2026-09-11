@@ -1,11 +1,12 @@
 @import 'tailwindcss';
 
 :root {
-  --color-ink: #14171c;
+  --color-ink: #0e1117;
   --color-paper: #f6f7f5;
-  --color-signal: #2f6f6b;
-  --color-signal-hover: #275c59;
-  --color-amber: #e2a33d;
+  --color-signal: #5b6ef5;
+  --color-signal-2: #8b5cf6;
+  --color-signal-hover: #4a5cf0;
+  --color-amber: #f5a524;
   --color-ink-muted: #5b6169;
   --color-paper-muted: #9ca3a8;
   --color-border: rgb(20 23 28 / 0.1);
@@ -20,7 +21,7 @@
   --background: var(--color-ink);
   --foreground: var(--color-paper);
   --muted-foreground: var(--color-paper-muted);
-  --border: rgb(246 247 245 / 0.1);
+  --border: rgb(246 247 245 / 0.12);
 }
 
 @theme inline {
@@ -29,6 +30,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-signal: var(--color-signal);
+  --color-signal-2: var(--color-signal-2);
   --color-signal-hover: var(--color-signal-hover);
   --color-amber: var(--color-amber);
   --font-sans: var(--font-sans);
