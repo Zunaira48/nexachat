@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { apiFetch } from '@/lib/api';
+import { NotificationBell } from '@/components/notification-bell';
+import { SearchBar } from '@/components/search-bar';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isLoading } = useAuthInit();
@@ -37,9 +39,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border">
-        <span className="font-serif text-lg">NexaChat</span>
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-border gap-4">
+        <span className="font-serif text-lg shrink-0">NexaChat</span>
+        <SearchBar />
+        <div className="flex items-center gap-3 shrink-0">
+          <NotificationBell />
           <span className="text-sm text-muted-foreground">{user.displayName}</span>
           <ThemeToggle />
           <Button variant="secondary" onClick={handleLogout}>

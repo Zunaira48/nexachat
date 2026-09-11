@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { authedFetch } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePresence } from '@/hooks/use-presence';
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getSocket } from '@/lib/socket';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { CreateGroupModal } from '@/components/create-group-modal';
@@ -24,6 +27,7 @@ interface ConversationSummary {
   name: string | null;
   members: Member[];
   messages: { content: string; type: string; createdAt: string }[];
+  unreadCount: number;
 }
 
 function conversationLabel(c: ConversationSummary, currentUserId?: string) {
@@ -37,11 +41,26 @@ export default function ConversationsPage() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showDmModal, setShowDmModal] = useState(false);
 
+  const queryClient = useQueryClient();
+  const accessToken = useAuthStore((s) => s.accessToken);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => authedFetch<{ conversations: ConversationSummary[] }>('/api/conversations'),
     refetchInterval: 15000,
   });
+
+  useEffect(() => {
+    if (!accessToken) return;
+    const socket = getSocket(accessToken);
+    function refetch() {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    }
+    socket.on('conversation_updated', refetch);
+    return () => {
+      socket.off('conversation_updated', refetch);
+    };
+  }, [accessToken, queryClient]);
 
   const conversations = data?.conversations ?? [];
   const onlineIds = usePresence(
@@ -103,17 +122,28 @@ export default function ConversationsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-medium truncate">
+                      <span
+                        className={`truncate ${c.unreadCount > 0 ? 'font-semibold' : 'font-medium'}`}
+                      >
                         {conversationLabel(c, currentUserId)}
                       </span>
                       {isFavorite && <Star size={13} className="fill-amber text-amber shrink-0" />}
                     </div>
                     {lastMessage && (
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p
+                        className={`text-sm truncate ${
+                          c.unreadCount > 0 ? 'text-foreground' : 'text-muted-foreground'
+                        }`}
+                      >
                         {lastMessage.content}
                       </p>
                     )}
                   </div>
+                  {c.unreadCount > 0 && (
+                    <span className="shrink-0 h-5 min-w-5 px-1.5 rounded-full bg-signal text-paper text-xs font-medium flex items-center justify-center">
+                      {c.unreadCount > 9 ? '9+' : c.unreadCount}
+                    </span>
+                  )}
                 </Link>
               </li>
             );

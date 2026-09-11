@@ -3,23 +3,40 @@ import { listConversationsForUser, createDirectConversation } from '../services/
 import { AppError } from '../utils/AppError';
 import { isOnline } from '../socket';
 import { toggleFavorite } from '../services/conversation.service';
+import { prisma } from '../config/prisma';
 
 export async function listConversations(req: Request, res: Response, next: NextFunction) {
   try {
     if (!req.user) throw new AppError('Authentication required', 401);
-    const conversations = await listConversationsForUser(req.user.sub);
+    const userId = req.user.sub;
+    const conversations = await listConversationsForUser(userId);
 
-    // Attach current presence for each member so the UI has correct
-    // initial state before any 'presence_update' socket event arrives.
-    const withPresence = conversations.map((c: (typeof conversations)[number]) => ({
-      ...c,
-      members: c.members.map((m: (typeof c.members)[number]) => ({
-        ...m,
-        user: { ...m.user, online: isOnline(m.user.id) },
-      })),
-    }));
+    // Unread count per conversation: messages not sent by me, with
+    // no MessageRead row for me yet — same "unread" definition our
+    // read-receipt system already uses (Phase 12).
+    const withExtras = await Promise.all(
+      conversations.map(async (c: (typeof conversations)[number]) => {
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: c.id,
+            senderId: { not: userId },
+            deletedAt: null,
+            reads: { none: { userId } },
+          },
+        });
 
-    res.json({ conversations: withPresence });
+        return {
+          ...c,
+          unreadCount,
+          members: c.members.map((m: (typeof c.members)[number]) => ({
+            ...m,
+            user: { ...m.user, online: isOnline(m.user.id) },
+          })),
+        };
+      }),
+    );
+
+    res.json({ conversations: withExtras });
   } catch (err) {
     next(err);
   }
