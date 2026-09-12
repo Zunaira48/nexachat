@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ export function SearchBar() {
   const router = useRouter();
   const currentUserId = useAuthStore((s) => s.user?.id);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -29,6 +30,23 @@ export function SearchBar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleGlobalShortcut = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      inputRef.current?.focus();
+      setOpen(true);
+    }
+    if (e.key === 'Escape') {
+      setOpen(false);
+      inputRef.current?.blur();
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleGlobalShortcut);
+    return () => document.removeEventListener('keydown', handleGlobalShortcut);
+  }, [handleGlobalShortcut]);
 
   function goTo(conversationId: string) {
     setOpen(false);
@@ -41,13 +59,14 @@ export function SearchBar() {
       <div className="relative">
         <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
+          ref={inputRef}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search messages and chats…"
+          placeholder="Search messages and chats… (⌘K)"
           className="pl-8 pr-8"
         />
         {query && (

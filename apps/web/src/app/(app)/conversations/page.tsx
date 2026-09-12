@@ -13,7 +13,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { CreateGroupModal } from '@/components/create-group-modal';
 import { StartDmModal } from '@/components/start-dm-modal';
-import { Users, MessageSquarePlus, Star } from 'lucide-react';
+import { Users, MessageSquarePlus, Star, MessagesSquare } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Member {
   userId: string;
@@ -67,7 +68,21 @@ export default function ConversationsPage() {
     conversations.flatMap((c) => c.members.map((m) => m.userId)).filter((id) => id !== currentUserId),
   );
 
-  if (isLoading) return <p className="p-6 text-muted-foreground">Loading conversations…</p>;
+  if (isLoading) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto space-y-2">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="flex items-center gap-3 border border-border rounded-md p-4">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (error) return <p className="p-6 text-red-500">Unable to load conversations.</p>;
 
   const sorted = [...conversations].sort((a, b) => {
@@ -94,7 +109,11 @@ export default function ConversationsPage() {
       </div>
 
       {sorted.length === 0 ? (
-        <p className="text-muted-foreground">No conversations yet.</p>
+        <div className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
+          <MessagesSquare size={32} className="mb-3 opacity-50" />
+          <p className="font-medium text-foreground mb-1">No conversations yet</p>
+          <p className="text-sm">Start a new message or create a group to get going.</p>
+        </div>
       ) : (
         <ul className="space-y-2">
           {sorted.map((c) => {
@@ -140,7 +159,7 @@ export default function ConversationsPage() {
                     )}
                   </div>
                   {c.unreadCount > 0 && (
-                    <span className="shrink-0 h-5 min-w-5 px-1.5 rounded-full bg-signal text-paper text-xs font-medium flex items-center justify-center">
+                    <span className="shrink-0 h-5 min-w-5 px-1.5 rounded-full bg-linear-to-br from-signal to-signal-2 text-paper text-xs font-medium flex items-center justify-center">
                       {c.unreadCount > 9 ? '9+' : c.unreadCount}
                     </span>
                   )}

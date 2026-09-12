@@ -4,7 +4,9 @@ import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText } from 'lucide-react';
+import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
 import { authedFetch } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,13 +129,28 @@ export default function ConversationPage() {
     }
   }
 
-  if (isLoading) return <p className="p-6 text-muted-foreground">Loading messages…</p>;
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-3 max-w-2xl mx-auto">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+            <Skeleton className={`h-9 rounded-md ${i % 2 === 0 ? 'w-40' : 'w-32'}`} />
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (error) return <p className="p-6 text-red-500">Unable to load this conversation.</p>;
 
   const pinnedMessages = messages.filter((m) => m.pinnedAt);
 
   return (
     <div className="flex flex-col h-[calc(100vh-57px)] max-w-2xl mx-auto">
+      <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border">
+        <Link href="/conversations" aria-label="Back to conversations">
+          <ArrowLeft size={18} />
+        </Link>
+      </div>
       {pinnedMessages.length > 0 && (
         <div className="border-b border-border px-4 py-2 bg-foreground/3 text-xs text-muted-foreground flex items-center gap-1.5 overflow-x-auto">
           <Pin size={12} className="shrink-0" />
@@ -143,7 +160,11 @@ export default function ConversationPage() {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-1">
         {messages.length === 0 ? (
-          <p className="text-muted-foreground">No messages yet. Say hello.</p>
+          <div className="flex flex-col items-center justify-center text-center py-20 text-muted-foreground">
+            <MessageCircle size={32} className="mb-3 opacity-50" />
+            <p className="font-medium text-foreground mb-1">No messages yet</p>
+            <p className="text-sm">Say hello to get the conversation started.</p>
+          </div>
         ) : (
           messages.map((m) => {
             const isMine = m.senderId === currentUserId;
@@ -240,7 +261,7 @@ export default function ConversationPage() {
                   </div>
 
                   {!m.deletedAt && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                    <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center">
                       <ReactionPicker onSelect={(emoji) => toggleReaction(m, emoji)} />
                       <Button variant="ghost" onClick={() => setReplyTo(m)} aria-label="Reply">
                         <ReplyIcon size={16} />
