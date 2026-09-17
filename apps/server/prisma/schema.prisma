@@ -17,6 +17,7 @@ model User {
   updatedAt           DateTime             @updatedAt
   sessions            Session[]
   conversationMembers ConversationMember[]
+  sentMessages        Message[]            @relation("MessageSender")
 }
 
 model Conversation {
@@ -48,6 +49,7 @@ model Message {
   conversationId String
   conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
+  sender         User              @relation("MessageSender", fields: [senderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   content        String
   type           String            @default("TEXT") // "TEXT" | "SYSTEM" | "IMAGE" | "FILE"
   createdAt      DateTime          @default(now())

@@ -12,6 +12,7 @@ import { conversationRouter } from './routes/conversation.route';
 import { groupRouter } from './routes/group.route';
 import { notificationRouter } from './routes/notification.route';
 import { searchRouter } from './routes/search.route';
+import { aiRouter } from './routes/ai.route';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/groups', groupRouter);
   app.use('/api/notifications', notificationRouter);
   app.use('/api/search', searchRouter);
+  app.use('/api/ai', aiRouter);
 
   // 404 for anything unmatched — must come after all real routes
   app.use((_req, res) => {

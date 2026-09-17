@@ -12,7 +12,10 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().min(1),
   R2_SECRET_ACCESS_KEY: z.string().min(1),
   R2_BUCKET_NAME: z.string().min(1),
-  R2_PUBLIC_URL: z.string().min(1), // e.g. https://pub-xxxx.r2.dev or your custom domain
+  R2_PUBLIC_URL: z.string().min(1),
+  GEMINI_API_KEY: z.string().min(1),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
+  AI_RATE_LIMIT_PER_USER_PER_HOUR: z.coerce.number().default(20),
 });
 
 const parsed = envSchema.safeParse(process.env);
