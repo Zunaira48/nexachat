@@ -4,7 +4,8 @@ import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle, Sparkles } from 'lucide-react';
+import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle, Sparkles, AlignLeft } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { authedFetch } from '@/lib/api';
@@ -141,6 +142,15 @@ export default function ConversationPage() {
       }),
     onSuccess: (data) => setDraft(data.rewritten),
   });
+  
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summarizeMutation = useMutation({
+    mutationFn: () =>
+      authedFetch<{ summary: string }>('/api/ai/summarize', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId }),
+      }),
+  });
 
   function toggleReaction(message: Message, emoji: string) {
     const mine = message.reactions.find((r) => r.userId === currentUserId && r.emoji === emoji);
@@ -168,10 +178,23 @@ export default function ConversationPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-57px)] max-w-2xl mx-auto">
-      <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border">
-        <Link href="/conversations" aria-label="Back to conversations">
+      <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border">
+        <Link href="/conversations" className="md:hidden" aria-label="Back to conversations">
           <ArrowLeft size={18} />
         </Link>
+        <div />
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setSummaryOpen(true);
+            summarizeMutation.mutate();
+          }}
+          disabled={messages.length === 0}
+          aria-label="Summarize conversation"
+        >
+          <AlignLeft size={14} className="mr-1.5" />
+          Summarize
+        </Button>
       </div>
       {pinnedMessages.length > 0 && (
         <div className="border-b border-border px-4 py-2 bg-foreground/3 text-xs text-muted-foreground flex items-center gap-1.5 overflow-x-auto">
@@ -447,6 +470,16 @@ export default function ConversationPage() {
       {typingUserIds.size > 0 && (
         <p className="px-6 pb-2 text-xs text-muted-foreground">Someone is typing…</p>
       )}
+
+      <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title="Conversation summary">
+        {summarizeMutation.isPending && (
+          <p className="text-sm text-muted-foreground">Summarizing…</p>
+        )}
+        {summarizeMutation.isError && (
+          <p className="text-sm text-red-500">Couldn&apos;t generate a summary right now.</p>
+        )}
+        {summarizeMutation.data && <p className="text-sm">{summarizeMutation.data.summary}</p>}
+      </Modal>
     </div>
   );
 }

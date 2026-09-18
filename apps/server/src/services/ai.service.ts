@@ -60,7 +60,32 @@ export async function rewriteMessage(content: string, style: 'PROFESSIONAL' | 'C
 
   return result.data;
 }
+const SUMMARY_SYSTEM_INSTRUCTION = `You summarize chat conversations for someone catching up.
+Rules:
+- Write 2 to 4 plain sentences, no bullet points, no headings, no markdown.
+- Cover only what was actually said. Do not invent names, facts, or outcomes not present in the conversation.
+- Be neutral and factual, not dramatic.
+- Respond with ONLY the summary text. No preamble like "Here is a summary".`;
 
+const summarySchema = z.string().trim().min(1).max(1000);
+
+export async function summarizeConversation(conversationId: string, userId: string) {
+  const context = await buildConversationContext(conversationId, userId);
+
+  const raw = await aiProvider.generateText(
+    `Conversation to summarize:\n${context}`,
+    SUMMARY_SYSTEM_INSTRUCTION,
+  );
+
+  const cleaned = raw.trim().replace(/^```(?:text)?/i, '').replace(/```$/, '').trim();
+  const result = summarySchema.safeParse(cleaned);
+
+  if (!result.success) {
+    throw new AppError('AI returned an unusable summary', 502);
+  }
+
+  return result.data;
+}
 export async function generateReplySuggestions(conversationId: string, userId: string) {
   const context = await buildConversationContext(conversationId, userId);
 
