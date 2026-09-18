@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle } from 'lucide-react';
+import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { authedFetch } from '@/lib/api';
@@ -52,6 +52,8 @@ export default function ConversationPage() {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showRewriteOptions, setShowRewriteOptions] = useState(false);
 
   useConversationSocket(conversationId);
   const { typingUserIds, emitTypingStart, emitTypingStop } = useTyping(conversationId);
@@ -82,6 +84,7 @@ export default function ConversationPage() {
     onSuccess: () => {
       setDraft('');
       setReplyTo(null);
+      setSuggestions([]);
     },
   });
 
@@ -118,6 +121,25 @@ export default function ConversationPage() {
         `/api/conversations/${conversationId}/messages/${id}/reactions/${encodeURIComponent(emoji)}`,
         { method: 'DELETE' },
       ),
+  });
+
+  const suggestMutation = useMutation({
+    mutationFn: () =>
+      authedFetch<{ suggestions: string[] }>('/api/ai/reply-suggestions', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId }),
+      }),
+    onSuccess: (data) => setSuggestions(data.suggestions),
+    onError: () => setSuggestions([]),
+  });
+
+  const rewriteMutation = useMutation({
+    mutationFn: (style: 'PROFESSIONAL' | 'CASUAL' | 'GRAMMAR') =>
+      authedFetch<{ rewritten: string }>('/api/ai/rewrite', {
+        method: 'POST',
+        body: JSON.stringify({ content: draft, style }),
+      }),
+    onSuccess: (data) => setDraft(data.rewritten),
   });
 
   function toggleReaction(message: Message, emoji: string) {
@@ -314,6 +336,53 @@ export default function ConversationPage() {
         </div>
       )}
 
+      {suggestions.length > 0 && (
+        <div className="flex gap-2 px-4 pt-3 pb-1 overflow-x-auto border-t border-border">
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                setDraft(s);
+                setSuggestions([]);
+              }}
+              className="shrink-0 text-xs rounded-full border border-border px-3 py-1.5 bg-foreground/3 hover:bg-foreground/8 whitespace-nowrap"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+      {suggestMutation.isError && (
+        <p className="px-4 pt-2 text-xs text-red-500">
+          Couldn&apos;t get suggestions right now — you can still send messages normally.
+        </p>
+      )}
+
+      {showRewriteOptions && (
+        <div className="flex gap-2 px-4 pt-3 pb-1 border-t border-border">
+          {(['PROFESSIONAL', 'CASUAL', 'GRAMMAR'] as const).map((style) => (
+            <button
+              key={style}
+              type="button"
+              disabled={rewriteMutation.isPending}
+              onClick={() => {
+                rewriteMutation.mutate(style);
+                setShowRewriteOptions(false);
+              }}
+              className="text-xs rounded-full border border-border px-3 py-1.5 bg-foreground/3 hover:bg-foreground/8 disabled:opacity-50"
+            >
+              {style === 'GRAMMAR' ? 'Fix grammar' : style === 'PROFESSIONAL' ? 'Professional' : 'Casual'}
+            </button>
+          ))}
+        </div>
+      )}
+      {rewriteMutation.isError && (
+        <p className="px-4 pt-2 text-xs text-red-500">
+          Couldn&apos;t rewrite that right now.
+        </p>
+      )}
+
       <form
         className="flex gap-2 p-4 border-t border-border"
         onSubmit={(e) => {
@@ -339,6 +408,26 @@ export default function ConversationPage() {
           aria-label="Attach file"
         >
           <Paperclip size={16} />
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => suggestMutation.mutate()}
+          disabled={suggestMutation.isPending || messages.length === 0}
+          aria-label="Suggest replies"
+          title="Suggest replies"
+        >
+          <Sparkles size={16} className={suggestMutation.isPending ? 'animate-pulse' : ''} />
+        </Button>
+                <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setShowRewriteOptions((v) => !v)}
+          disabled={!draft.trim()}
+          aria-label="Rewrite message"
+          title="Rewrite message"
+        >
+          <Pencil size={16} />
         </Button>
         <Input
           value={draft}
