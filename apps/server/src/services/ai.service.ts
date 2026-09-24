@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { aiProvider } from '../ai';
-import { buildConversationContext } from '../ai/context-builder';
+import { buildConversationContext, buildUnreadContext } from '../ai/context-builder';
 import { AppError } from '../utils/AppError';
 
 const suggestionsResponseSchema = z
@@ -82,6 +82,50 @@ export async function summarizeConversation(conversationId: string, userId: stri
 
   if (!result.success) {
     throw new AppError('AI returned an unusable summary', 502);
+  }
+
+  return result.data;
+}
+
+
+export async function summarizeUnreadMessages(conversationId: string, userId: string) {
+  const context = await buildUnreadContext(conversationId, userId);
+
+  const raw = await aiProvider.generateText(
+    `Unread messages to summarize:\n${context}`,
+    SUMMARY_SYSTEM_INSTRUCTION,
+  );
+
+  const cleaned = raw.trim().replace(/^```(?:text)?/i, '').replace(/```$/, '').trim();
+  const result = summarySchema.safeParse(cleaned);
+
+  if (!result.success) {
+    throw new AppError('AI returned an unusable summary', 502);
+  }
+
+  return result.data;
+}
+const ASK_SYSTEM_INSTRUCTION = `You answer a question about a chat conversation, using ONLY the conversation text given to you.
+Rules:
+- If the answer isn't in the conversation, say plainly that it isn't mentioned. Do not guess or invent an answer.
+- Answer in 1 to 3 plain sentences. No markdown, no headings.
+- Do not add commentary beyond what was asked.`;
+
+const askResponseSchema = z.string().trim().min(1).max(800);
+
+export async function answerAboutConversation(conversationId: string, userId: string, question: string) {
+  const context = await buildConversationContext(conversationId, userId);
+
+  const raw = await aiProvider.generateText(
+    `Conversation:\n${context}\n\nQuestion: ${question}`,
+    ASK_SYSTEM_INSTRUCTION,
+  );
+
+  const cleaned = raw.trim().replace(/^```(?:text)?/i, '').replace(/```$/, '').trim();
+  const result = askResponseSchema.safeParse(cleaned);
+
+  if (!result.success) {
+    throw new AppError('AI returned an unusable answer', 502);
   }
 
   return result.data;

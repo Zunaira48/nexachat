@@ -144,11 +144,20 @@ export default function ConversationPage() {
   });
   
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [question, setQuestion] = useState('');
   const summarizeMutation = useMutation({
     mutationFn: () =>
       authedFetch<{ summary: string }>('/api/ai/summarize', {
         method: 'POST',
         body: JSON.stringify({ conversationId }),
+      }),
+  });
+
+  const askMutation = useMutation({
+    mutationFn: (q: string) =>
+      authedFetch<{ answer: string }>('/api/ai/ask', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId, question: q }),
       }),
   });
 
@@ -471,7 +480,14 @@ export default function ConversationPage() {
         <p className="px-6 pb-2 text-xs text-muted-foreground">Someone is typing…</p>
       )}
 
-      <Modal open={summaryOpen} onClose={() => setSummaryOpen(false)} title="Conversation summary">
+      <Modal
+        open={summaryOpen}
+        onClose={() => {
+          setSummaryOpen(false);
+          setQuestion('');
+        }}
+        title="Ask about this conversation"
+      >
         {summarizeMutation.isPending && (
           <p className="text-sm text-muted-foreground">Summarizing…</p>
         )}
@@ -479,6 +495,30 @@ export default function ConversationPage() {
           <p className="text-sm text-red-500">Couldn&apos;t generate a summary right now.</p>
         )}
         {summarizeMutation.data && <p className="text-sm">{summarizeMutation.data.summary}</p>}
+
+        <form
+          className="flex gap-2 mt-4 pt-4 border-t border-border"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (question.trim()) askMutation.mutate(question);
+          }}
+        >
+          <Input
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Ask a specific question…"
+          />
+          <Button type="submit" disabled={askMutation.isPending || !question.trim()}>
+            Ask
+          </Button>
+        </form>
+        {askMutation.isPending && (
+          <p className="text-sm text-muted-foreground mt-2">Thinking…</p>
+        )}
+        {askMutation.isError && (
+          <p className="text-sm text-red-500 mt-2">Couldn&apos;t answer that right now.</p>
+        )}
+        {askMutation.data && <p className="text-sm mt-2">{askMutation.data.answer}</p>}
       </Modal>
     </div>
   );

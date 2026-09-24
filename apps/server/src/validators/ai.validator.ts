@@ -12,3 +12,8 @@ export const rewriteSchema = z.object({
 export const summarizeSchema = z.object({
   conversationId: z.string().min(1, 'conversationId is required'),
 });
+
+export const askSchema = z.object({
+  conversationId: z.string().min(1, 'conversationId is required'),
+  question: z.string().trim().min(1, 'Question is required').max(300, 'Question is too long'),
+});

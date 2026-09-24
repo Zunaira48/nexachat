@@ -13,8 +13,11 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { CreateGroupModal } from '@/components/create-group-modal';
 import { StartDmModal } from '@/components/start-dm-modal';
-import { Users, MessageSquarePlus, Star, MessagesSquare } from 'lucide-react';
+import { Users, MessageSquarePlus, Star, MessagesSquare, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Modal } from '@/components/ui/modal';
+import { useMutation } from '@tanstack/react-query';
+
 
 interface Member {
   userId: string;
@@ -41,6 +44,15 @@ export default function ConversationsPage() {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showDmModal, setShowDmModal] = useState(false);
+  const [unreadSummaryFor, setUnreadSummaryFor] = useState<string | null>(null);
+
+  const unreadSummaryMutation = useMutation({
+    mutationFn: (conversationId: string) =>
+      authedFetch<{ summary: string }>('/api/ai/summarize-unread', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId }),
+      }),
+  });
 
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -125,11 +137,11 @@ export default function ConversationsPage() {
             const lastMessage = c.messages[0];
 
             return (
-              <li key={c.id}>
-                <Link
-                  href={`/conversations/${c.id}`}
-                  className="flex items-center gap-3 border border-border rounded-md p-4 hover:bg-foreground/5 transition-colors"
-                >
+              <li
+                key={c.id}
+                className="flex items-center gap-3 border border-border rounded-md p-4 hover:bg-foreground/5 transition-colors"
+              >
+                <Link href={`/conversations/${c.id}`} className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="relative">
                     <Avatar
                       name={conversationLabel(c, currentUserId)}
@@ -158,17 +170,47 @@ export default function ConversationsPage() {
                       </p>
                     )}
                   </div>
-                  {c.unreadCount > 0 && (
+                </Link>
+                {c.unreadCount > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setUnreadSummaryFor(c.id);
+                        unreadSummaryMutation.mutate(c.id);
+                      }}
+                      className="shrink-0 p-1.5 rounded-md hover:bg-foreground/10"
+                      aria-label="Summarize unread messages"
+                      title="Summarize unread messages"
+                    >
+                      <Sparkles size={14} />
+                    </button>
                     <span className="shrink-0 h-5 min-w-5 px-1.5 rounded-full bg-linear-to-br from-signal to-signal-2 text-paper text-xs font-medium flex items-center justify-center">
                       {c.unreadCount > 9 ? '9+' : c.unreadCount}
                     </span>
-                  )}
-                </Link>
+                  </>
+                )}
               </li>
             );
           })}
         </ul>
       )}
+
+      <Modal
+        open={unreadSummaryFor !== null}
+        onClose={() => setUnreadSummaryFor(null)}
+        title="Unread messages"
+      >
+        {unreadSummaryMutation.isPending && (
+          <p className="text-sm text-muted-foreground">Summarizing…</p>
+        )}
+        {unreadSummaryMutation.isError && (
+          <p className="text-sm text-red-500">Couldn&apos;t summarize unread messages right now.</p>
+        )}
+        {unreadSummaryMutation.data && <p className="text-sm">{unreadSummaryMutation.data.summary}</p>}
+      </Modal>
 
       <CreateGroupModal open={showGroupModal} onClose={() => setShowGroupModal(false)} />
       <StartDmModal open={showDmModal} onClose={() => setShowDmModal(false)} />
