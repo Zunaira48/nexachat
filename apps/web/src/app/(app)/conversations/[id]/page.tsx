@@ -161,6 +161,15 @@ export default function ConversationPage() {
       }),
   });
 
+  
+  const extractTasksMutation = useMutation({
+    mutationFn: () =>
+      authedFetch<{ tasks: string[] }>('/api/ai/extract-tasks', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId }),
+      }),
+  });
+
   function toggleReaction(message: Message, emoji: string) {
     const mine = message.reactions.find((r) => r.userId === currentUserId && r.emoji === emoji);
     if (mine) {
@@ -519,6 +528,33 @@ export default function ConversationPage() {
           <p className="text-sm text-red-500 mt-2">Couldn&apos;t answer that right now.</p>
         )}
         {askMutation.data && <p className="text-sm mt-2">{askMutation.data.answer}</p>}
+
+        <div className="mt-4 pt-4 border-t border-border">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => extractTasksMutation.mutate()}
+            disabled={extractTasksMutation.isPending}
+          >
+            Extract tasks
+          </Button>
+          {extractTasksMutation.isPending && (
+            <p className="text-sm text-muted-foreground mt-2">Looking for tasks…</p>
+          )}
+          {extractTasksMutation.isError && (
+            <p className="text-sm text-red-500 mt-2">Couldn&apos;t extract tasks right now.</p>
+          )}
+          {extractTasksMutation.data && extractTasksMutation.data.tasks.length === 0 && (
+            <p className="text-sm text-muted-foreground mt-2">No action items found in this conversation.</p>
+          )}
+          {extractTasksMutation.data && extractTasksMutation.data.tasks.length > 0 && (
+            <ul className="text-sm mt-2 space-y-1 list-disc list-inside">
+              {extractTasksMutation.data.tasks.map((task, i) => (
+                <li key={i}>{task}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       </Modal>
     </div>
   );

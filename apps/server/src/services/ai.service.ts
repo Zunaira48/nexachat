@@ -130,6 +130,33 @@ export async function answerAboutConversation(conversationId: string, userId: st
 
   return result.data;
 }
+const TASK_EXTRACTION_SYSTEM_INSTRUCTION = `You extract action items / tasks mentioned in a chat conversation.
+Rules:
+- Respond with ONLY a raw JSON array of strings. No markdown, no code fences, no explanation.
+- Each item should be a short, clear task (who needs to do what, if mentioned), under 20 words.
+- If the conversation mentions no actual tasks or action items, respond with an empty array: []
+- Do NOT invent a task just to have something to return. An empty array is a correct answer when nothing was asked of anyone.
+- Maximum 8 items.`;
+
+const tasksResponseSchema = z.array(z.string().trim().min(1).max(200)).max(8);
+
+export async function extractTasks(conversationId: string, userId: string) {
+  const context = await buildConversationContext(conversationId, userId);
+
+  const raw = await aiProvider.generateText(
+    `Conversation:\n${context}`,
+    TASK_EXTRACTION_SYSTEM_INSTRUCTION,
+  );
+
+  const parsed = extractJsonArray(raw);
+  const result = tasksResponseSchema.safeParse(parsed);
+
+  if (!result.success) {
+    throw new AppError('AI returned tasks in an unexpected format', 502);
+  }
+
+  return result.data;
+}
 export async function generateReplySuggestions(conversationId: string, userId: string) {
   const context = await buildConversationContext(conversationId, userId);
 

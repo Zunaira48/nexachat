@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
-import { generateReplySuggestions, rewriteMessage, summarizeConversation, answerAboutConversation, summarizeUnreadMessages } from '../services/ai.service';
+import { generateReplySuggestions, rewriteMessage, summarizeConversation, answerAboutConversation, summarizeUnreadMessages, extractTasks } from '../services/ai.service';
 
 export async function replySuggestions(req: Request, res: Response, next: NextFunction) {
   try {
@@ -62,6 +62,18 @@ export async function summarizeUnread(req: Request, res: Response, next: NextFun
 
     const summary = await summarizeUnreadMessages(conversationId, req.user.sub);
     res.json({ summary });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function extractTasksHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user) throw new AppError('Authentication required', 401);
+    const { conversationId } = req.body as { conversationId: string };
+
+    const tasks = await extractTasks(conversationId, req.user.sub);
+    res.json({ tasks });
   } catch (err) {
     next(err);
   }
