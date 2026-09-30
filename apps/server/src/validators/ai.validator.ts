@@ -17,3 +17,9 @@ export const askSchema = z.object({
   conversationId: z.string().min(1, 'conversationId is required'),
   question: z.string().trim().min(1, 'Question is required').max(300, 'Question is too long'),
 });
+
+
+export const translateSchema = z.object({
+  content: z.string().trim().min(1, 'Content is required').max(1000, 'Message is too long to translate'),
+  targetLanguage: z.string().trim().min(1, 'Target language is required').max(50),
+});

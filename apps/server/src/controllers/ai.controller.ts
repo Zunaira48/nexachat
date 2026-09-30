@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
-import { generateReplySuggestions, rewriteMessage, summarizeConversation, answerAboutConversation, summarizeUnreadMessages, extractTasks } from '../services/ai.service';
+import { generateReplySuggestions, rewriteMessage, summarizeConversation, answerAboutConversation, summarizeUnreadMessages, extractTasks, translateMessage } from '../services/ai.service';
 
 export async function replySuggestions(req: Request, res: Response, next: NextFunction) {
   try {
@@ -74,6 +74,18 @@ export async function extractTasksHandler(req: Request, res: Response, next: Nex
 
     const tasks = await extractTasks(conversationId, req.user.sub);
     res.json({ tasks });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function translate(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user) throw new AppError('Authentication required', 401);
+    const { content, targetLanguage } = req.body as { content: string; targetLanguage: string };
+
+    const translated = await translateMessage(content, targetLanguage);
+    res.json({ translated });
   } catch (err) {
     next(err);
   }

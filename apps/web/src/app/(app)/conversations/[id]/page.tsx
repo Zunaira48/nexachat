@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle, Sparkles, AlignLeft } from 'lucide-react';
+import { Pin, Pencil, Trash2, Reply as ReplyIcon, X, Paperclip, FileText, ArrowLeft, MessageCircle, Sparkles, AlignLeft, Languages } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -169,6 +169,22 @@ export default function ConversationPage() {
         body: JSON.stringify({ conversationId }),
       }),
   });
+  
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
+  const [translations, setTranslations] = useState<Record<string, { lang: string; text: string }>>({});
+  const translateMutation = useMutation({
+    mutationFn: ({ id, content, lang }: { id: string; content: string; lang: string }) =>
+      authedFetch<{ translated: string }>('/api/ai/translate', {
+        method: 'POST',
+        body: JSON.stringify({ content, targetLanguage: lang }),
+      }).then((data) => ({ id, lang, text: data.translated })),
+    onSuccess: (result) => {
+      setTranslations((prev) => ({ ...prev, [result.id]: { lang: result.lang, text: result.text } }));
+      setTranslatingId(null);
+    },
+  });
+
+  const TRANSLATE_LANGUAGES = ['English', 'Urdu', 'Spanish', 'French', 'Arabic'];
 
   function toggleReaction(message: Message, emoji: string) {
     const mine = message.reactions.find((r) => r.userId === currentUserId && r.emoji === emoji);
@@ -321,6 +337,30 @@ export default function ConversationPage() {
                         ))}
                       </div>
                     )}
+                  
+                    {translatingId === m.id && (
+                      <div className="flex gap-1 mt-1.5 flex-wrap">
+                        {TRANSLATE_LANGUAGES.map((lang) => (
+                          <button
+                            key={lang}
+                            type="button"
+                            disabled={translateMutation.isPending}
+                            onClick={() => translateMutation.mutate({ id: m.id, content: m.content, lang })}
+                            className="text-xs rounded-full border border-border px-2 py-1 bg-foreground/3 hover:bg-foreground/8 disabled:opacity-50"
+                          >
+                            {lang}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {translateMutation.isPending && translatingId === null && (
+                      <p className="text-xs text-muted-foreground mt-1">Translating…</p>
+                    )}
+                    {translations[m.id] && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">
+                        ({translations[m.id].lang}): {translations[m.id].text}
+                      </p>
+                    )}
                   </div>
 
                   {!m.deletedAt && (
@@ -328,6 +368,13 @@ export default function ConversationPage() {
                       <ReactionPicker onSelect={(emoji) => toggleReaction(m, emoji)} />
                       <Button variant="ghost" onClick={() => setReplyTo(m)} aria-label="Reply">
                         <ReplyIcon size={16} />
+                      </Button>
+                                            <Button
+                        variant="ghost"
+                        onClick={() => setTranslatingId(translatingId === m.id ? null : m.id)}
+                        aria-label="Translate message"
+                      >
+                        <Languages size={16} />
                       </Button>
                       <Button
                         variant="ghost"

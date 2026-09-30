@@ -157,6 +157,23 @@ export async function extractTasks(conversationId: string, userId: string) {
 
   return result.data;
 }
+const translateResponseSchema = z.string().trim().min(1).max(2000);
+
+export async function translateMessage(content: string, targetLanguage: string) {
+  const raw = await aiProvider.generateText(
+    content,
+    `Translate the user's message into ${targetLanguage}. Preserve the tone and meaning exactly. Do not add notes or explanations. Respond with ONLY the translated text.`,
+  );
+
+  const cleaned = cleanRewriteOutput(raw);
+  const result = translateResponseSchema.safeParse(cleaned);
+
+  if (!result.success) {
+    throw new AppError('AI returned an unusable translation', 502);
+  }
+
+  return result.data;
+}
 export async function generateReplySuggestions(conversationId: string, userId: string) {
   const context = await buildConversationContext(conversationId, userId);
 
