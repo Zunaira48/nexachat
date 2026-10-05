@@ -1,11 +1,12 @@
 import { randomUUID } from 'crypto';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { r2Client } from '../config/r2';
 import { prisma } from '../config/prisma';
 import { env } from '../config/env';
 import { AppError } from '../utils/AppError';
 import { assertConversationMember } from './authorization.service';
+import { MAX_FILE_SIZE_BYTES } from '../validators/attachment.validator';
 
 // Sanitize the filename to prevent path traversal or weird characters
 // ending up in the object key — never trust the client's raw filename.
@@ -23,6 +24,12 @@ export async function createUploadUrl(
 
   const key = `${conversationId}/${randomUUID()}-${safeFileName(fileName)}`;
 
+  // Presigned PUT — R2 does not implement the S3 "POST Object" API
+  // (confirmed: it returns 501 Not Implemented), so a presigned-POST
+  // upload policy with a content-length-range condition isn't usable
+  // here the way it would be on real AWS S3. Real size enforcement
+  // happens after the upload instead, in confirmAttachment below,
+  // by checking R2's own reported object size.
   const command = new PutObjectCommand({
     Bucket: env.R2_BUCKET_NAME,
     Key: key,
@@ -51,6 +58,19 @@ export async function confirmAttachment(
     throw new AppError('Invalid attachment key', 400);
   }
 
+  // R2 can't enforce a real size limit at upload time (see the comment
+  // in createUploadUrl), so we verify the ACTUAL uploaded object's size
+  // here — not the size the client claims in this request body. An
+  // oversized object is deleted immediately rather than kept in storage
+  // or recorded as a real attachment.
+  const head = await r2Client.send(
+    new HeadObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: data.key }),
+  );
+
+  if ((head.ContentLength ?? 0) > MAX_FILE_SIZE_BYTES) {
+    await r2Client.send(new DeleteObjectCommand({ Bucket: env.R2_BUCKET_NAME, Key: data.key }));
+    throw new AppError('Uploaded file exceeds the allowed size limit', 400);
+  }
   const messageType = data.mimeType.startsWith('image/') ? 'IMAGE' : 'FILE';
 
   const [message] = await prisma.$transaction([
